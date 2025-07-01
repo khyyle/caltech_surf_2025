@@ -1,0 +1,9 @@
+Welcome to eht-imaging! v 1.2.10 
+
+Loading text image:  avery_sgra_eofn.txt
+OBSERVED
+Producing clean visibilities from image with nfft FT . . . 
+iter:   0%|          | 0/10000 [00:00<?, ?it/s]
+[seed=54] saved params to ensembles/params_54.msgpack
+(1030,)
+(100, 100, 2)

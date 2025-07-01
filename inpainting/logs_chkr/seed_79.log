@@ -1,0 +1,8 @@
+Welcome to eht-imaging! v 1.2.10 
+
+iteration:   0%|          | 0/4000 [00:00<?, ?it/s]
+iteration 0, loss=0.24288
+iteration 1000, loss=0.00008
+iteration 2000, loss=0.00004
+iteration 3000, loss=0.00002
+saved params for SEED=79 to ensembles/params_79.msgpack
