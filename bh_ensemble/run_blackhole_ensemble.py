@@ -231,7 +231,7 @@ if __name__ == "__main__":
     state = jax.device_get(flax.jax_utils.unreplicate(state))
 
     from flax.serialization import to_bytes  
-    fname = f"ensembles/params_{SEED}.msgpack"  
+    fname = f"bh_ensemble/models/params_{SEED}.msgpack"  
     with open(fname, "wb") as fp:  
         fp.write(to_bytes(state.params))  
     print(f"[seed={SEED}] saved params to {fname}")
