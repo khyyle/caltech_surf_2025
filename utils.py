@@ -1,21 +1,12 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import ehtim as eh
-from tqdm.notebook import tqdm
 import functools
 
 import jax
 import flax
 from jax import numpy as jnp
 from flax import linen as nn
-from flax.training import train_state
 from typing import Any, Callable
-import optax
-import sys
 from flax.serialization import from_bytes
 from flax.serialization import to_bytes
-
-from datetime import datetime
 
 def shard(xs):
     """Split data into shards for multiple devices along the first dimension."""
@@ -182,6 +173,15 @@ def train_step(state, target, coords):
     (loss, image_pred), grads = jax.value_and_grad(loss_fn_identity, argnums=0, has_aux=True)(state.params, state.apply_fn, target, coords)
     state = state.apply_gradients(grads=grads) #ignoring paralleization for now
     return loss, state, image_pred
+
+def loss_fn_hetero(params, predictor_fn, target, coords, sigma):
+    pred = predictor_fn({'params': params}, coords)
+    return jnp.mean(((pred - target) / sigma) ** 2), pred
+
+@jax.jit
+def train_step_hetero(state, target, coords, sigma):
+    (loss, image_pred), grads = jax.value_and_grad(loss_fn_hetero, has_aux=True)(state.params, state.apply_fn, target, coords, sigma)
+    return loss, state.apply_gradients(grads=grads), image_pred
 
 
 
