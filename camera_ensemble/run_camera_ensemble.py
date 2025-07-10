@@ -1,5 +1,5 @@
 import sys
-from flax.serialization import to_bytes  
+from flax.serialization import to_bytes, from_bytes
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm
