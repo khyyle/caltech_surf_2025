@@ -13,9 +13,10 @@ from jax import numpy as jnp
 from flax import linen as nn
 from flax.training import train_state
 import optax
+import ehtim as eh
 from skimage import data
 
-'''
+
 image_path = 'datasets/avery_sgra_eofn.txt'
 array_path = 'datasets/EHT2017.txt'
 image_true = eh.image.load_txt(image_path)
@@ -24,21 +25,22 @@ image_true.display()
 intensity_gt = jnp.array(image_true.imarr(), dtype=jnp.float32)
 ydim, xdim = intensity_gt.shape
 assert intensity_gt.size == image_true.imvec.size
+
 '''
-
-
 img = data.camera()
 intensity_gt = jnp.array(img, dtype=jnp.float32) / 255.0
 ydim, xdim = intensity_gt.shape
 
 assert intensity_gt.size == img.size
+'''
 x, y = np.linspace(0, 1, xdim), np.linspace(0, 1, ydim)
 coords = np.moveaxis(np.array(np.meshgrid(x, y, indexing='xy')), 0, -1)
-
 coords_flat = coords.reshape(-1,2)
+
 gt_flat = intensity_gt.ravel()
 I_max = float(max(gt_flat))
 npix = intensity_gt.size
+
 
 class MLP(nn.Module): 
     net_depth: int = 4
@@ -198,7 +200,7 @@ lets try on black hole image, camera guy, starfish gpt img from brandon (can ave
 also do ensemble on each and compare uncertainty maps. 
 """
 if __name__ == "__main__":
-    n_crop = 128
+    n_crop = 25
     nvis = n_crop**2
     rng_real, rng_im = jax.random.PRNGKey(2), jax.random.PRNGKey(3)
 
@@ -220,7 +222,7 @@ if __name__ == "__main__":
         if i % 1000 == 0:
             print(f"iteration {i}, loss={loss:.5f}")
     
-    fname = f"camera_ensemble/models/params_{SEED}.msgpack"  
+    fname = f"fourier_ensembling/bh_models/params_{SEED}.msgpack"  
     with open(fname, "wb") as fp:  
         fp.write(to_bytes(state.params))  
     print(f"[seed={SEED}] saved params to {fname}")
