@@ -15,24 +15,60 @@ from flax.training import train_state
 import optax
 import ehtim as eh
 from skimage import data
+from PIL import Image
 
 
-image_path = 'datasets/avery_sgra_eofn.txt'
-array_path = 'datasets/EHT2017.txt'
-image_true = eh.image.load_txt(image_path)
-image_true.display()
+def load_img(image_type):
+    intensity_gt: jnp.array
+    xdim: int
+    ydim: int
+    if image_type == 'black hole':
+        image_path = 'datasets/avery_sgra_eofn.txt'
+        image_true = eh.image.load_txt(image_path)
+        image_true.display()
 
-intensity_gt = jnp.array(image_true.imarr(), dtype=jnp.float32)
-ydim, xdim = intensity_gt.shape
-assert intensity_gt.size == image_true.imvec.size
+        intensity_gt = jnp.array(image_true.imarr(), dtype=jnp.float32)
+        ydim, xdim = intensity_gt.shape
 
-'''
-img = data.camera()
-intensity_gt = jnp.array(img, dtype=jnp.float32) / 255.0
-ydim, xdim = intensity_gt.shape
+        assert intensity_gt.size == image_true.imvec.size
+    elif image_type == 'camera':
+        img = data.camera()
+        intensity_gt = jnp.array(img, dtype=jnp.float32) / 255.0
+        ydim, xdim = intensity_gt.shape
 
-assert intensity_gt.size == img.size
-'''
+        assert intensity_gt.size == img.size
+
+        plt.figure()
+        plt.title('Ground truth (full)')
+        plt.imshow(intensity_gt, cmap='gray')
+        plt.axis('off')
+        plt.show()
+    elif image_type == 'starfish':
+        img = Image.open('datasets/starfish.png').convert('RGB')
+        print(img.size)
+        W, H = img.size
+        scale = 256/max(W, H)
+        xdim, ydim = (round(W*scale), round(H*scale))
+        img = img.resize((xdim, ydim), resample=Image.Resampling.LANCZOS)
+
+        rgb = np.asarray(img, dtype=np.float32)/255.0
+        intensity_gt = rgb.mean(axis=-1, dtype=np.float32)
+        #gray_pil = Image.fromarray((intensity_gt * 255).astype(np.uint8), mode="L")
+        #gray_pil.show()
+        
+        #plt.figure()
+        #plt.title('Ground truth (full)')
+        #plt.imshow(intensity_gt, cmap='gray')
+        #plt.axis('off')
+        #plt.show()
+
+    return xdim, ydim, intensity_gt
+
+
+# build coords and relevant parameters for later
+img_type = 'black hole'
+xdim, ydim, intensity_gt = load_img(img_type)
+
 x, y = np.linspace(0, 1, xdim), np.linspace(0, 1, ydim)
 coords = np.moveaxis(np.array(np.meshgrid(x, y, indexing='xy')), 0, -1)
 coords_flat = coords.reshape(-1,2)
@@ -182,7 +218,7 @@ def loss_fn(params, predictor_fn, target, sigma_vis, coords, n_crop):
     '''
     image_pred = predictor_fn({'params': params}, coords)
     vis = fourier_forward(image_pred, n_crop)
-    loss = jnp.mean((jnp.abs(vis - target))**2)
+    loss = jnp.mean((jnp.abs(vis - target)/sigma_vis)**2)
     return loss, image_pred
 
 @functools.partial(jax.jit, static_argnums=(4,))
@@ -200,16 +236,21 @@ lets try on black hole image, camera guy, starfish gpt img from brandon (can ave
 also do ensemble on each and compare uncertainty maps. 
 """
 if __name__ == "__main__":
-    n_crop = 25
+    n_crop = xdim #no crop
     nvis = n_crop**2
     rng_real, rng_im = jax.random.PRNGKey(2), jax.random.PRNGKey(3)
-
+    
     vis_true = fourier_forward(intensity_gt, n_crop)
-    #if doing n_crop, dont apply noise. 
+    
     vis_obs = vis_true
-
-    sigma_vis=0
-
+    uu, vv = np.meshgrid(np.arange(-n_crop//2, n_crop//2),
+                     np.arange(-n_crop//2, n_crop//2), indexing='ij')
+    r = np.sqrt(uu**2 + vv**2) 
+    r = r / r.max() # normalize
+    sigma_vis = jnp.asarray(1e-4 + 8e-4*(r.ravel()), dtype=jnp.float32)
+    vis_obs += sigma_vis * (jax.random.normal(rng_real, (nvis,)) +
+                     1j * jax.random.normal(rng_im, (nvis,))) / jnp.sqrt(2)
+    
     SEED = int(sys.argv[1])
     hparams = {'num_iters': 20000, 'lr_init': 1e-3, 'lr_final': 9e-4, 'batchsize': 500}
     params = predictor.init(jax.random.PRNGKey(SEED), coords)['params']
@@ -220,9 +261,9 @@ if __name__ == "__main__":
         #batch = np.random.choice(vis_obs.size, hparams['batchsize'], replace=False)
         loss, state, image = train_step(state, vis_obs, sigma_vis, coords, n_crop)
         if i % 1000 == 0:
-            print(f"iteration {i}, loss={loss:.5f}")
+            print(f"iteration {i}, loss={loss:.9e}")
     
-    fname = f"fourier_ensembling/bh_models/params_{SEED}.msgpack"  
+    fname = f"fourier_ensembling/bh_varnoise_models/params_{SEED}.msgpack"  
     with open(fname, "wb") as fp:  
         fp.write(to_bytes(state.params))  
     print(f"[seed={SEED}] saved params to {fname}")
